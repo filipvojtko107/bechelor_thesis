@@ -1,0 +1,23 @@
+[Unit]
+Description=HTTP Web Server
+After=network.target
+
+[Service]
+User=wsd
+ExecStart=/sbin/WebServerd
+ExecReload=/bin/kill -HUP $MAINPID
+StandardOutput=journal
+StandardError=journal
+#StandardOutput=syslog
+#StandardError=syslog
+#SyslogIdentifier=WebServerd
+Restart=no
+TimeoutStartSec=10
+TimeoutStopSec=20
+Type=notify
+NotifyAccess=all
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+
+[Install]
+WantedBy=multi-user.target

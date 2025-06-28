@@ -1,0 +1,109 @@
+diff -Naur httpparser/src/httpparser/httprequestparser.h httpparser.new/src/httpparser/httprequestparser.h
+--- httpparser/src/httpparser/httprequestparser.h	2025-03-06 12:23:42.000000000 +0100
++++ httpparser.new/src/httpparser/httprequestparser.h	2025-03-10 18:17:01.621363361 +0100
+@@ -10,6 +10,8 @@
+ 
+ #include <string.h>
+ #include <stdlib.h>
++#include <stdint.h>
++#include <errno.h>
+ 
+ #include "request.h"
+ 
+@@ -293,8 +295,12 @@
+ 
+                         if( strcasecmp(h.name.c_str(), "Content-Length") == 0 )
+                         {
+-                            contentSize = atoi(h.value.c_str());
+-                            req.content.reserve( contentSize );
++                  			 errno = 0;
++                            contentSize = strtoull(h.value.c_str(), NULL, 10);
++                            if (errno == EINVAL || errno == ERANGE)
++                            {
++                            		return ParsingError;
++                            }
+                         }
+                         else if( strcasecmp(h.name.c_str(), "Transfer-Encoding") == 0 )
+                         {
+@@ -344,7 +350,13 @@
+                     if( req.versionMajor > 1 || (req.versionMajor == 1 && req.versionMinor == 1) )
+                         req.keepAlive = true;
+                 }
++                
+ 
++					 if (req.method == "POST" || req.method == "PUT" || req.method == "PATCH") 
++					 {
++					 		if (contentSize > 0) { return ParsingCompleted; }
++					 		else { return ParsingError; }
++					 }
+                 if( chunked )
+                 {
+                     state = ChunkSize;
+@@ -356,21 +368,8 @@
+                     else
+                         return ParsingError;
+                 }
+-                else
+-                {
+-                    state = Post;
+-                }
+                 break;
+             }
+-            case Post:
+-                --contentSize;
+-                req.content.push_back( input );
+-
+-                if( contentSize == 0 )
+-                {
+-                    return ParsingCompleted;
+-                }
+-                break;
+             case ChunkSize:
+                 if( isalnum(input) )
+                 {
+@@ -424,9 +423,14 @@
+             case ChunkSizeNewLine:
+                 if( input == '\n' )
+                 {
+-                    chunkSize = strtol(chunkSizeStr.c_str(), NULL, 16);
++                	  errno = 0;
++                    chunkSize = strtoull(chunkSizeStr.c_str(), NULL, 16);
++                    if (errno == EINVAL || errno == ERANGE)
++                    {
++                    		return ParsingError;
++                    }
++                    
+                     chunkSizeStr.clear();
+-                    req.content.reserve(req.content.size() + chunkSize);
+ 
+                     if( chunkSize == 0 )
+                         state = ChunkSizeNewLine_2;
+@@ -491,8 +495,6 @@
+                 }
+                 break;
+             case ChunkData:
+-                req.content.push_back(input);
+-
+                 if( --chunkSize == 0 )
+                 {
+                     state = ChunkDataNewLine_1;
+@@ -599,7 +601,6 @@
+         ExpectingNewline_2,
+         ExpectingNewline_3,
+ 
+-        Post,
+         ChunkSize,
+         ChunkExtensionName,
+         ChunkExtensionValue,
+@@ -614,9 +615,9 @@
+         ChunkData,
+     } state;
+ 
+-    size_t contentSize;
++    uint64_t contentSize;
+     std::string chunkSizeStr;
+-    size_t chunkSize;
++    uint64_t chunkSize;
+     bool chunked;
+ };
+ 
